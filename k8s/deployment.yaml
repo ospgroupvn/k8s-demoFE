@@ -1,0 +1,61 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: k8s-demo-fe
+  labels:
+    app: k8s-demo-fe
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: k8s-demo-fe
+  template:
+    metadata:
+      labels:
+        app: k8s-demo-fe
+    spec:
+      imagePullSecrets:
+      - name: harbor-secret
+      containers:
+      - name: k8s-demo-fe
+        image: reg.ospgroup.vn/demok8s/demo-fe:latest
+        ports:
+        - containerPort: 3000
+        env:
+        - name: NODE_ENV
+          value: "production"
+        - name: PORT
+          value: "3000"
+        - name: NEXTAUTH_URL
+          value: "https://common.ospgroup.vn/bttp"
+        - name: NEXT_PUBLIC_API_URL
+          value: "https://common.ospgroup.vn/bttp/v1/api"
+        - name: NEXTAUTH_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: k8s-demo-fe-secret
+              key: nextauth-secret
+        - name: NEXT_PUBLIC_BASE_AUTH
+          valueFrom:
+            secretKeyRef:
+              name: k8s-demo-fe-secret  
+              key: base-auth-token
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "250m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+        readinessProbe:
+          httpGet:
+            path: /
+            port: 3000
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        livenessProbe:
+          httpGet:
+            path: /
+            port: 3000
+          initialDelaySeconds: 60
+          periodSeconds: 30

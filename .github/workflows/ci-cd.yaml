@@ -1,0 +1,80 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [ demo, main ]
+  pull_request:
+    branches: [ demo, main ]
+
+env:
+  REGISTRY: reg.ospgroup.vn
+  IMAGE_NAME: demok8s/demo-fe
+  NAMESPACE: k8s-demo
+
+jobs:
+  build-and-deploy:
+    runs-on: [self-hosted, k8s-demo]
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+
+    - name: Log in to Harbor Registry
+      uses: docker/login-action@v3
+      with:
+        registry: ${{ env.REGISTRY }}
+        username: ${{ secrets.HARBOR_USERNAME }}
+        password: ${{ secrets.HARBOR_PASSWORD }}
+
+    - name: Extract metadata
+      id: meta
+      uses: docker/metadata-action@v5
+      with:
+        images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+        tags: |
+          type=ref,event=branch
+          type=ref,event=pr
+          type=sha,prefix={{branch}}-
+          type=raw,value=latest,enable={{is_default_branch}}
+
+    - name: Build and push Docker image
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        file: ./Dockerfile
+        push: true
+        tags: ${{ steps.meta.outputs.tags }}
+        labels: ${{ steps.meta.outputs.labels }}
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+
+    - name: Update image tag in Kubernetes manifests
+      run: |
+        IMAGE_TAG=$(echo "${{ github.sha }}" | cut -c1-7)
+        sed -i "s|image: .*|image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.ref_name }}-${IMAGE_TAG}|g" k8s/deployment.yaml
+
+    - name: Deploy to Kubernetes
+      run: |
+        # Wait for image to be available
+        echo "Waiting for image to be available in registry..."
+        sleep 30
+        
+        # Update deployment with new image
+        IMAGE_TAG=$(echo "${{ github.sha }}" | cut -c1-7)
+        kubectl set image deployment/k8s-demo-fe k8s-demo-fe=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.ref_name }}-${IMAGE_TAG} -n ${{ env.NAMESPACE }}
+        
+        # Wait for rollout to complete
+        kubectl rollout status deployment/k8s-demo-fe -n ${{ env.NAMESPACE }} --timeout=300s
+
+    - name: Verify deployment
+      run: |
+        kubectl get pods -n ${{ env.NAMESPACE }} -l app=k8s-demo-fe
+        kubectl get svc -n ${{ env.NAMESPACE }} -l app=k8s-demo-fe
+        
+        # Test endpoint
+        echo "Testing endpoint..."
+        sleep 10
+        curl -s -k -I https://common.ospgroup.vn/bttp/ || echo "Endpoint not ready yet"

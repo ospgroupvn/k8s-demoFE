@@ -1,0 +1,33 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: build-demo-fe-image
+  namespace: k8s-demo
+spec:
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+      - name: kaniko
+        image: gcr.io/kaniko-project/executor:latest
+        args:
+        - "--dockerfile=Dockerfile"
+        - "--context=git://github.com/ospgroupvn/k8s-demoFE.git#demo"
+        - "--destination=reg.ospgroup.vn/demok8s/demo-fe:latest"
+        - "--destination=reg.ospgroup.vn/demok8s/demo-fe:demo-20250814"
+        - "--skip-tls-verify"
+        - "--verbosity=debug"
+        env:
+        - name: DOCKER_CONFIG
+          value: /kaniko/.docker
+        volumeMounts:
+        - name: docker-config
+          mountPath: /kaniko/.docker
+          readOnly: true
+      volumes:
+      - name: docker-config
+        secret:
+          secretName: harbor-secret
+          items:
+          - key: .dockerconfigjson
+            path: config.json

@@ -1,0 +1,28 @@
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: k8s-demo-fe-ingress
+  labels:
+    app: k8s-demo-fe
+spec:
+  entryPoints:
+    - websecure
+  routes:
+  - match: Host(`common.ospgroup.vn`) && PathPrefix(`/bttp`)
+    kind: Rule
+    services:
+    - name: k8s-demo-fe-service
+      port: 3000
+    middlewares:
+    - name: k8s-demo-fe-stripprefix
+  tls:
+    secretName: common-ospgroup-vn-tls
+---
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: k8s-demo-fe-stripprefix
+spec:
+  stripPrefix:
+    prefixes:
+      - /bttp

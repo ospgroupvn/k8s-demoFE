@@ -1,0 +1,46 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: build-demo-fe-image-v3
+  namespace: k8s-demo
+spec:
+  backoffLimit: 1
+  activeDeadlineSeconds: 1200  # 20 minutes timeout
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+      - name: kaniko
+        image: gcr.io/kaniko-project/executor:latest
+        args:
+        - "--dockerfile=Dockerfile"
+        - "--context=git://github.com/ospgroupvn/k8s-demoFE.git#demo"
+        - "--destination=reg.ospgroup.vn/demok8s/demo-fe:latest"
+        - "--destination=reg.ospgroup.vn/demok8s/demo-fe:demo-manual"
+        - "--skip-tls-verify"
+        - "--cache=true"
+        - "--cache-ttl=24h"
+        - "--use-new-run"
+        - "--log-timestamp"
+        - "--verbosity=info"
+        env:
+        - name: DOCKER_CONFIG
+          value: /kaniko/.docker
+        volumeMounts:
+        - name: docker-config
+          mountPath: /kaniko/.docker
+          readOnly: true
+        resources:
+          limits:
+            cpu: "2"
+            memory: 4Gi
+          requests:
+            cpu: "1"
+            memory: 2Gi
+      volumes:
+      - name: docker-config
+        secret:
+          secretName: harbor-secret
+          items:
+          - key: .dockerconfigjson
+            path: config.json

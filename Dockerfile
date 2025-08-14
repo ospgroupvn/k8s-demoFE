@@ -1,37 +1,43 @@
-# ===== Stage 1: Build =====
-FROM node:20.19.0-alpine AS builder
-
-# Cài pnpm
+# ===== Stage 1: Dependencies =====
+FROM node:20.19.0-alpine AS deps
 RUN corepack enable && corepack prepare pnpm@latest --activate
+WORKDIR /app
+COPY package.json pnpm-lock.yaml ./
+RUN pnpm install --frozen-lockfile
 
+# ===== Stage 2: Build =====
+FROM node:20.19.0-alpine AS builder
+RUN corepack enable && corepack prepare pnpm@latest --activate
 WORKDIR /app
 
-# Copy file cấu hình để cache deps
-COPY package.json pnpm-lock.yaml ./
-RUN pnpm install
-
-# Copy toàn bộ code
+# Copy dependencies
+COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
-# Build Next.js (standalone)
-RUN pnpm build && \
-    cp -r dist/static dist/standalone/dist/
+# Build Next.js with standalone output
+ENV NEXT_TELEMETRY_DISABLED=1
+RUN pnpm build
 
-# ===== Stage 2: Runtime =====
-FROM node:20.19.0-alpine
+# ===== Stage 3: Runtime =====
+FROM node:20.19.0-alpine AS runtime
 
 WORKDIR /app
-RUN corepack enable && corepack prepare pnpm@latest --activate
 
-# Copy package.json để cài production deps
-COPY package.json pnpm-lock.yaml ./
-RUN pnpm install --prod
+# Create non-root user
+RUN addgroup --system --gid 1001 nodejs && \
+    adduser --system --uid 1001 nextjs
 
-# Copy build standalone từ builder
-COPY --from=builder /app/dist/standalone ./standalone
+# Copy built application
+COPY --from=builder /app/public ./public
+COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
+COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 
-# Expose port
+USER nextjs
+
 EXPOSE 3000
 
-# Chạy app (tùy cấu hình bạn, giả sử chạy Next.js standalone)
-CMD ["node", "standalone/server.js"]
+ENV PORT=3000
+ENV NODE_ENV=production
+ENV NEXT_TELEMETRY_DISABLED=1
+
+CMD ["node", "server.js"]

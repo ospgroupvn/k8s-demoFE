@@ -1,0 +1,34 @@
+apiVersion: actions.summerwind.dev/v1alpha1
+kind: RunnerDeployment
+metadata:
+  name: k8s-demo-runner
+  namespace: k8s-demo
+spec:
+  replicas: 2
+  template:
+    spec:
+      repository: ospgroupvn/k8s-demoFE
+      labels:
+        - self-hosted
+        - k8s-demo
+      env:
+        - name: DOCKER_HOST
+          value: tcp://localhost:2376
+        - name: DOCKER_TLS_VERIFY
+          value: "1"
+        - name: DOCKER_CERT_PATH
+          value: /certs/client
+      volumeMounts:
+        - name: docker-certs
+          mountPath: /certs
+      volumes:
+        - name: docker-certs
+          emptyDir: {}
+      dockerdWithinRunnerContainer: true
+      resources:
+        limits:
+          cpu: "2.0"
+          memory: "4Gi"
+        requests:
+          cpu: "1.0" 
+          memory: "2Gi"

@@ -1,0 +1,47 @@
+FROM nginx:alpine
+COPY <<EOF /usr/share/nginx/html/index.html
+<!DOCTYPE html>
+<html>
+<head>
+    <title>K8s Demo FE - Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 40px; background: #f0f0f0; }
+        .container { background: white; padding: 20px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        .status { color: #28a745; font-weight: bold; }
+        .info { background: #e7f3ff; padding: 10px; border-left: 4px solid #007bff; margin: 20px 0; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🚀 K8s Demo FE</h1>
+        <p class="status">✅ CI/CD Pipeline Working!</p>
+        
+        <div class="info">
+            <h3>📊 Environment Info:</h3>
+            <ul>
+                <li><strong>Namespace:</strong> k8s-demo</li>
+                <li><strong>Domain:</strong> https://common.ospgroup.vn/bttp/</li>
+                <li><strong>Registry:</strong> reg.ospgroup.vn/demok8s/demo-fe</li>
+                <li><strong>Build Time:</strong> $(date)</li>
+            </ul>
+        </div>
+        
+        <div class="info">
+            <h3>🔧 Pipeline Status:</h3>
+            <ul>
+                <li>✅ Actions Runner Controller</li>
+                <li>✅ Harbor Registry Integration</li>
+                <li>✅ Kubernetes Deployment</li>
+                <li>✅ Traefik Ingress</li>
+                <li>🔄 Next.js Build (in progress)</li>
+            </ul>
+        </div>
+        
+        <p><small>Deployed via GitHub Actions → Harbor → Kubernetes</small></p>
+    </div>
+</body>
+</html>
+EOF
+
+EXPOSE 80
+CMD ["nginx", "-g", "daemon off;"]
