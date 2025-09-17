@@ -2,7 +2,7 @@ name: CI - Build & Push FE Image
 
 on:
   push:
-    branches: ["demo"]   # chỉ chạy khi có commit lên nhánh demo
+    branches: ["demo"]
 
 env:
   REGISTRY: reg.ospgroup.vn
@@ -10,7 +10,7 @@ env:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
 
     steps:
       - name: Checkout code
@@ -19,14 +19,12 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Login to Harbor
-        uses: docker/login-action@v3
-        with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ secrets.HARBOR_USERNAME }}
-          password: ${{ secrets.HARBOR_PASSWORD }}
+      # Login bằng shell thay vì docker/login-action
+      - name: Login to Harbor (manual)
+        run: |
+          echo "${{ secrets.HARBOR_PASSWORD }}" | docker login ${{ env.REGISTRY }} -u "${{ secrets.HARBOR_USERNAME }}" --password-stdin
 
-      # Nếu muốn build với tag "v1" cố định
+      # Build & push image
       - name: Build and Push Docker image
         uses: docker/build-push-action@v6
         with:
