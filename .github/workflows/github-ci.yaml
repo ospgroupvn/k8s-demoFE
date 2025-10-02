@@ -16,59 +16,33 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Clean Docker system
+        run: |
+          docker system prune -f || true
+          docker builder prune -f || true
+
+      - name: Setup Docker Buildx
+        run: |
+          docker buildx create --use --name mybuilder --driver docker-container || true
+          docker buildx inspect --bootstrap
+
       - name: Login to Harbor
         run: |
           echo "${{ secrets.HARBOR_PASSWORD }}" | docker login ${{ env.REGISTRY }} -u "${{ secrets.HARBOR_USERNAME }}" --password-stdin
 
-      - name: Create Docker config for Kaniko
-        run: |
-          mkdir -p /tmp/docker-config
-          cp ~/.docker/config.json /tmp/docker-config/config.json
-
-      - name: Build and Push with Kaniko
+      - name: Build and Push Docker image
         run: |
           IMAGE_TAG=${GITHUB_SHA}
           
-          # Create Kaniko job with dynamic image tag
-          cat <<EOF | kubectl apply -f -
-          apiVersion: batch/v1
-          kind: Job
-          metadata:
-            name: kaniko-build-${GITHUB_RUN_NUMBER}
-            namespace: default
-          spec:
-            backoffLimit: 0
-            template:
-              spec:
-                containers:
-                - name: kaniko
-                  image: gcr.io/kaniko-project/executor:latest
-                  args:
-                    - --dockerfile=/workspace/Dockerfile
-                    - --context=dir:///workspace/
-                    - --destination=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${IMAGE_TAG}
-                    - --destination=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:v1
-                    - --skip-tls-verify
-                  env:
-                    - name: DOCKER_CONFIG
-                      value: /kaniko/.docker/
-                  volumeMounts:
-                    - name: demo-fe-src
-                      mountPath: /workspace
-                    - name: docker-config
-                      mountPath: /kaniko/.docker/
-                restartPolicy: Never
-                volumes:
-                  - name: demo-fe-src
-                    hostPath:
-                      path: ${PWD}
-                  - name: docker-config
-                    hostPath:
-                      path: /tmp/docker-config
-          EOF
-          
-          # Wait for job completion
-          kubectl wait --for=condition=complete --timeout=600s job/kaniko-build-${GITHUB_RUN_NUMBER} -n default
-          
-          # Clean up job
-          kubectl delete job kaniko-build-${GITHUB_RUN_NUMBER} -n default
+          docker buildx build \
+            --platform linux/amd64 \
+            --push \
+            -t ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${IMAGE_TAG} \
+            -t ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:v1 \
+            .
+
+      - name: Cleanup
+        if: always()
+        run: |
+          docker buildx rm mybuilder || true
+          docker system prune -f || true
