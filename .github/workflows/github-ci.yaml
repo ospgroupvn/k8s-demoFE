@@ -18,10 +18,12 @@ jobs:
 
       - name: Clean Docker system
         run: |
+          echo "🧹 Cleaning old Docker resources..."
           docker stop $(docker ps -aq) || true
           docker rm $(docker ps -aq) || true
           docker rmi $(docker images -q) || true
           docker system prune -af || true
+          sudo rm -rf /var/lib/docker/tmp/* || true
 
       - name: Login to Harbor
         run: |
@@ -30,16 +32,19 @@ jobs:
       - name: Build and Push Docker image
         run: |
           IMAGE_TAG=${GITHUB_SHA}
+          echo "🔨 Building image ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${IMAGE_TAG}"
+
           docker build --no-cache -t ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${IMAGE_TAG} .
           docker push ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${IMAGE_TAG}
 
-          # Tag và push version
+          echo "🏷️ Tagging as v1"
           docker tag ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${IMAGE_TAG} ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:v1
           docker push ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:v1
 
       - name: Cleanup
         if: always()
         run: |
+          echo "🗑️ Cleanup images after build..."
           docker rmi ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${GITHUB_SHA} || true
           docker rmi ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:v1 || true
           docker system prune -f || true
