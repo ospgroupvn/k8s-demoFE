@@ -16,14 +16,25 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Clean Docker system
+      - name: Check Docker status and clean system
         run: |
+          # Check Docker status
+          docker info
+          
+          # Clean Docker system
           docker system prune -f || true
           docker builder prune -f || true
 
       - name: Setup Docker Buildx
         run: |
-          docker buildx create --use --name mybuilder --driver docker-container || true
+          # List existing builders
+          docker buildx ls
+          
+          # Remove existing builder if exists
+          docker buildx rm mybuilder || true
+          
+          # Create and use new builder
+          docker buildx create --use --name mybuilder --driver docker-container
           docker buildx inspect --bootstrap
 
       - name: Login to Harbor
