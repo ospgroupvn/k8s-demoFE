@@ -13,6 +13,23 @@ jobs:
     runs-on: self-hosted
 
     steps:
+      
+      - name: Build and Push Docker image
+        run: |
+          set -xe  # in ra toàn bộ lệnh và dừng ngay khi lỗi
+          IMAGE_TAG=${GITHUB_SHA}
+          echo "🔨 Building image ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${IMAGE_TAG}"
+
+          # hiển thị danh sách file để chắc chắn Dockerfile tồn tại
+          ls -lah
+
+          docker build --no-cache -t ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${IMAGE_TAG} .
+          docker push ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${IMAGE_TAG}
+
+          echo "🏷️ Tagging as v1"
+          docker tag ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${IMAGE_TAG} ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:v1
+          docker push ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:v1
+
       - name: Checkout code
         uses: actions/checkout@v4
 
