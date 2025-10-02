@@ -1,0 +1,36 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: kaniko-build-demo-fe
+  namespace: k8s-demo
+spec:
+  backoffLimit: 0
+  template:
+    spec:
+      containers:
+      - name: kaniko
+        image: gcr.io/kaniko-project/executor:latest
+        args:
+          - --dockerfile=/workspace/Dockerfile
+          - --context=dir:///workspace/
+          - --destination=reg.ospgroup.vn/demok8s/demo-fe:latest
+          - --skip-tls-verify
+        env:
+          - name: DOCKER_CONFIG
+            value: /kaniko/.docker/
+        volumeMounts:
+          - name: demo-fe-src
+            mountPath: /workspace
+          - name: harbor-config
+            mountPath: /kaniko/.docker/
+      restartPolicy: Never
+      volumes:
+        - name: demo-fe-src
+          hostPath:
+            path: /c/k8s/demo-k8s/demo-fe
+        - name: harbor-config
+          secret:
+            secretName: harbor-registry
+            items:
+              - key: .dockerconfigjson
+                path: config.json
