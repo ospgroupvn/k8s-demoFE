@@ -20,6 +20,9 @@ jobs:
         run: |
           echo "${{ secrets.HARBOR_PASSWORD }}" | docker login ${{ env.REGISTRY }} -u "${{ secrets.HARBOR_USERNAME }}" --password-stdin
 
+      - name: List files in the workspace
+        run: ls -la
+
       - name: Build and Push Docker image
         run: |
           IMAGE_TAG=${GITHUB_SHA}
