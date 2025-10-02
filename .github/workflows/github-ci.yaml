@@ -35,7 +35,7 @@ jobs:
           kind: Job
           metadata:
             name: kaniko-build-${GITHUB_RUN_NUMBER}
-            namespace: github-runners
+            namespace: default
           spec:
             backoffLimit: 0
             template:
@@ -68,7 +68,7 @@ jobs:
           EOF
           
           # Wait for job completion
-          kubectl wait --for=condition=complete --timeout=600s job/kaniko-build-${GITHUB_RUN_NUMBER} -n github-runners
+          kubectl wait --for=condition=complete --timeout=600s job/kaniko-build-${GITHUB_RUN_NUMBER} -n default
           
           # Clean up job
-          kubectl delete job kaniko-build-${GITHUB_RUN_NUMBER} -n github-runners
+          kubectl delete job kaniko-build-${GITHUB_RUN_NUMBER} -n default
