@@ -16,44 +16,30 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Clean Docker system thoroughly
+      - name: Clean Docker system
         run: |
-          # Check Docker status
-          docker info
-          
-          # Stop all containers and remove everything
           docker stop $(docker ps -aq) || true
           docker rm $(docker ps -aq) || true
           docker rmi $(docker images -q) || true
-          
-          # Clean Docker system completely
           docker system prune -af || true
-          
-          # Clear Docker temp files that might cause overlay2 issues
-          sudo rm -rf /var/lib/docker/tmp/* || true
 
       - name: Login to Harbor
         run: |
           echo "${{ secrets.HARBOR_PASSWORD }}" | docker login ${{ env.REGISTRY }} -u "${{ secrets.HARBOR_USERNAME }}" --password-stdin
 
-      - name: Build and Push Docker image (Simple Docker)
+      - name: Build and Push Docker image
         run: |
           IMAGE_TAG=${GITHUB_SHA}
-          
-          # Build image with no-cache to avoid overlay2 issues
           docker build --no-cache -t ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${IMAGE_TAG} .
-          
-          # Push main tag
           docker push ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${IMAGE_TAG}
-          
-          # Tag and push v1
+
+          # Tag và push version
           docker tag ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${IMAGE_TAG} ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:v1
           docker push ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:v1
 
       - name: Cleanup
         if: always()
         run: |
-          # Clean up images after build
           docker rmi ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${GITHUB_SHA} || true
           docker rmi ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:v1 || true
           docker system prune -f || true
