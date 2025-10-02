@@ -16,44 +16,44 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Check Docker status and clean system
+      - name: Clean Docker system thoroughly
         run: |
           # Check Docker status
           docker info
           
-          # Clean Docker system
-          docker system prune -f || true
-          docker builder prune -f || true
-
-      - name: Setup Docker Buildx
-        run: |
-          # List existing builders
-          docker buildx ls
+          # Stop all containers and remove everything
+          docker stop $(docker ps -aq) || true
+          docker rm $(docker ps -aq) || true
+          docker rmi $(docker images -q) || true
           
-          # Remove existing builder if exists
-          docker buildx rm mybuilder || true
+          # Clean Docker system completely
+          docker system prune -af || true
           
-          # Create and use new builder
-          docker buildx create --use --name mybuilder --driver docker-container
-          docker buildx inspect --bootstrap
+          # Clear Docker temp files that might cause overlay2 issues
+          sudo rm -rf /var/lib/docker/tmp/* || true
 
       - name: Login to Harbor
         run: |
           echo "${{ secrets.HARBOR_PASSWORD }}" | docker login ${{ env.REGISTRY }} -u "${{ secrets.HARBOR_USERNAME }}" --password-stdin
 
-      - name: Build and Push Docker image
+      - name: Build and Push Docker image (Simple Docker)
         run: |
           IMAGE_TAG=${GITHUB_SHA}
           
-          docker buildx build \
-            --platform linux/amd64 \
-            --push \
-            -t ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${IMAGE_TAG} \
-            -t ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:v1 \
-            .
+          # Build image with no-cache to avoid overlay2 issues
+          docker build --no-cache -t ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${IMAGE_TAG} .
+          
+          # Push main tag
+          docker push ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${IMAGE_TAG}
+          
+          # Tag and push v1
+          docker tag ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${IMAGE_TAG} ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:v1
+          docker push ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:v1
 
       - name: Cleanup
         if: always()
         run: |
-          docker buildx rm mybuilder || true
+          # Clean up images after build
+          docker rmi ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${GITHUB_SHA} || true
+          docker rmi ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:v1 || true
           docker system prune -f || true
