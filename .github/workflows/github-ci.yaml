@@ -16,12 +16,19 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Cleanup docker cache before build
+        run: |
+          echo "🧹 Pre-clean docker cache..."
+          docker system prune -af --volumes || true
+
       - name: Login to Harbor
         run: |
           echo "${{ secrets.HARBOR_PASSWORD }}" | docker login ${{ env.REGISTRY }} -u "${{ secrets.HARBOR_USERNAME }}" --password-stdin
 
       - name: Build Docker image
         working-directory: ${{ github.workspace }}
+        env:
+          DOCKER_BUILDKIT: 0
         run: |
           IMAGE_TAG=${GITHUB_SHA}
           echo "🔨 Building docker image ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${IMAGE_TAG}"
@@ -39,8 +46,8 @@ jobs:
           docker push ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${IMAGE_TAG}
           docker push ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:v1
 
-      - name: Cleanup
+      - name: Cleanup after build
         if: always()
         run: |
-          echo "🗑️ Cleanup images after build..."
-          docker system prune -f || true
+          echo "🗑️ Post-clean docker cache..."
+          docker system prune -af --volumes || true
