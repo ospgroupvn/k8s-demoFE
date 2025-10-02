@@ -20,26 +20,24 @@ jobs:
         run: |
           echo "${{ secrets.HARBOR_PASSWORD }}" | docker login ${{ env.REGISTRY }} -u "${{ secrets.HARBOR_USERNAME }}" --password-stdin
 
-      - name: Set up Docker Buildx
-        run: |
-          docker buildx create --use --name mybuilder || true
-          docker buildx inspect --bootstrap
-
-      - name: Build and Push Docker image (Buildx)
+      - name: Build Docker image
         working-directory: ${{ github.workspace }}
         run: |
           IMAGE_TAG=${GITHUB_SHA}
-          echo "🔨 Building with buildx ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${IMAGE_TAG}"
+          echo "🔨 Building docker image ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${IMAGE_TAG}"
 
-          echo "📂 Current dir: $(pwd)"
-          ls -lah
-
-          docker buildx build \
+          docker build \
             --no-cache \
-            --platform linux/amd64 \
             -t ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${IMAGE_TAG} \
             -t ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:v1 \
-            --push .
+            .
+
+      - name: Push Docker image
+        run: |
+          IMAGE_TAG=${GITHUB_SHA}
+          echo "📤 Pushing docker images..."
+          docker push ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${IMAGE_TAG}
+          docker push ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:v1
 
       - name: Cleanup
         if: always()
