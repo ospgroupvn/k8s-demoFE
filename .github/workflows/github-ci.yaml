@@ -1,53 +1,140 @@
-name: CI - Build & Push FE Image
+name: CI - Build & Push Next.js FE Image
 
 on:
   push:
+    branches: ["demo"]
+  pull_request:
     branches: ["demo"]
 
 env:
   REGISTRY: reg.ospgroup.vn
   IMAGE_NAME: demok8s/bttp-fe
+  NODE_VERSION: "20.19.0"
 
 jobs:
   build:
     runs-on: self-hosted
+    timeout-minutes: 30
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
-      - name: Cleanup docker cache before build
+      - name: Set up environment variables
         run: |
-          echo "🧹 Pre-clean docker cache..."
+          echo "IMAGE_TAG=${GITHUB_SHA:0:8}" >> $GITHUB_ENV
+          echo "BUILD_DATE=$(date -u +'%Y-%m-%dT%H:%M:%SZ')" >> $GITHUB_ENV
+          echo "COMMIT_MESSAGE=$(git log -1 --pretty=%B)" >> $GITHUB_ENV
+
+      - name: Pre-build cleanup
+        run: |
+          echo "🧹 Cleaning Docker system before build..."
           docker system prune -af --volumes || true
+          
+          # Remove any existing images with same tags
+          docker rmi ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${IMAGE_TAG} || true
+          docker rmi ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:v1 || true
+          docker rmi ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest || true
 
-      - name: Login to Harbor
+      - name: Validate Dockerfile and dependencies
         run: |
+          echo "🔍 Validating build files..."
+          test -f Dockerfile || (echo "❌ Dockerfile not found" && exit 1)
+          test -f package.json || (echo "❌ package.json not found" && exit 1)
+          test -f pnpm-lock.yaml || (echo "❌ pnpm-lock.yaml not found" && exit 1)
+          echo "✅ All required files present"
+
+      - name: Login to Harbor Registry
+        run: |
+          echo "🔐 Logging into Harbor registry..."
           echo "${{ secrets.HARBOR_PASSWORD }}" | docker login ${{ env.REGISTRY }} -u "${{ secrets.HARBOR_USERNAME }}" --password-stdin
+          echo "✅ Successfully logged into Harbor"
 
-      - name: Build Docker image
-        working-directory: ${{ github.workspace }}
+      - name: Build Next.js Docker image
         env:
-          DOCKER_BUILDKIT: 1   # bật lại BuildKit (ổn định hơn, legacy builder deprecated)
+          DOCKER_BUILDKIT: 1
         run: |
-          IMAGE_TAG=${GITHUB_SHA}
-          echo "🔨 Building docker image ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${IMAGE_TAG}"
-
+          echo "🔨 Building Next.js application..."
+          echo "📋 Build Info:"
+          echo "  - Image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${IMAGE_TAG}"
+          echo "  - Node Version: ${{ env.NODE_VERSION }}"
+          echo "  - Build Date: ${BUILD_DATE}"
+          echo "  - Commit: ${GITHUB_SHA:0:8}"
+          
           docker build \
             --progress=plain \
+            --build-arg NODE_VERSION=${{ env.NODE_VERSION }} \
+            --build-arg BUILD_DATE="${BUILD_DATE}" \
+            --build-arg COMMIT_SHA="${GITHUB_SHA:0:8}" \
+            --label "org.opencontainers.image.title=BTTP Frontend" \
+            --label "org.opencontainers.image.description=Next.js Frontend Application" \
+            --label "org.opencontainers.image.version=${IMAGE_TAG}" \
+            --label "org.opencontainers.image.created=${BUILD_DATE}" \
+            --label "org.opencontainers.image.revision=${GITHUB_SHA}" \
+            --label "org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}" \
             -t ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${IMAGE_TAG} \
             -t ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:v1 \
+            -t ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest \
             .
+          
+          echo "✅ Docker image built successfully"
 
-      - name: Push Docker image
+      - name: Verify built image
         run: |
-          IMAGE_TAG=${GITHUB_SHA}
-          echo "📤 Pushing docker images..."
-          docker push ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${IMAGE_TAG}
-          docker push ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:v1
+          echo "🔍 Verifying built image..."
+          docker images | grep ${{ env.IMAGE_NAME }}
+          docker inspect ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${IMAGE_TAG} --format='{{.Config.Labels}}'
 
-      - name: Cleanup after build
+      - name: Push images to Harbor
+        run: |
+          echo "📤 Pushing images to Harbor registry..."
+          
+          # Push commit-specific tag
+          echo "Pushing ${IMAGE_TAG} tag..."
+          docker push ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${IMAGE_TAG}
+          
+          # Push v1 tag (stable)
+          echo "Pushing v1 tag..."
+          docker push ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:v1
+          
+          # Push latest tag
+          echo "Pushing latest tag..."
+          docker push ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+          
+          echo "✅ All images pushed successfully"
+
+      - name: Generate build summary
         if: always()
         run: |
-          echo "🗑️ Post-clean docker cache..."
+          echo "## 📋 Build Summary" >> $GITHUB_STEP_SUMMARY
+          echo "| Property | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|----------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| 🏷️ Image Tag | \`${IMAGE_TAG}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| 📦 Registry | \`${{ env.REGISTRY }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| 🖼️ Image Name | \`${{ env.IMAGE_NAME }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| 🕒 Build Date | \`${BUILD_DATE}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| 📝 Commit | \`${GITHUB_SHA:0:8}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| 🌿 Branch | \`${{ github.ref_name }}\` |" >> $GITHUB_STEP_SUMMARY
+          
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 🚀 Available Images:" >> $GITHUB_STEP_SUMMARY
+          echo "- \`${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${IMAGE_TAG}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- \`${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:v1\`" >> $GITHUB_STEP_SUMMARY
+          echo "- \`${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest\`" >> $GITHUB_STEP_SUMMARY
+
+      - name: Post-build cleanup
+        if: always()
+        run: |
+          echo "🗑️ Cleaning up after build..."
+          
+          # Remove local images to save space
+          docker rmi ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${IMAGE_TAG} || true
+          docker rmi ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:v1 || true
+          docker rmi ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest || true
+          
+          # Clean Docker system
           docker system prune -af --volumes || true
+          
+          echo "✅ Cleanup completed"
