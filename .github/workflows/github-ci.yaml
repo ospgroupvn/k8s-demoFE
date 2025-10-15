@@ -20,23 +20,35 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0
+          fetch-depth: 1
+          # Fetch at least 1 commit to ensure git log works
 
       - name: Set up environment variables
         run: |
           echo "IMAGE_TAG=${GITHUB_SHA:0:8}" >> $GITHUB_ENV
           echo "BUILD_DATE=$(date -u +'%Y-%m-%dT%H:%M:%SZ')" >> $GITHUB_ENV
-          echo "COMMIT_MESSAGE=$(git log -1 --pretty=%B)" >> $GITHUB_ENV
+          
+          # Safely get commit message with fallback
+          COMMIT_MSG=$(git log -1 --pretty=%B 2>/dev/null || echo "Initial commit")
+          echo "COMMIT_MESSAGE=${COMMIT_MSG}" >> $GITHUB_ENV
+          
+          echo "✅ Environment variables set:"
+          echo "  - IMAGE_TAG: ${GITHUB_SHA:0:8}"
+          echo "  - BUILD_DATE: $(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+          echo "  - COMMIT_MESSAGE: ${COMMIT_MSG}"
 
       - name: Pre-build cleanup
         run: |
           echo "🧹 Cleaning Docker system before build..."
-          docker system prune -af --volumes || true
+          docker system prune -af --volumes || echo "⚠️ Docker prune failed, continuing..."
           
           # Remove any existing images with same tags
-          docker rmi ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${IMAGE_TAG} || true
-          docker rmi ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:v1 || true
-          docker rmi ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest || true
+          echo "Removing existing images if they exist..."
+          docker rmi ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${IMAGE_TAG} 2>/dev/null || echo "Image ${IMAGE_TAG} not found, skipping..."
+          docker rmi ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:v1 2>/dev/null || echo "Image v1 not found, skipping..."
+          docker rmi ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest 2>/dev/null || echo "Image latest not found, skipping..."
+          
+          echo "✅ Pre-build cleanup completed"
 
       - name: Validate Dockerfile and dependencies
         run: |
