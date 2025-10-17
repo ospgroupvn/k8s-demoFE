@@ -64,11 +64,29 @@ jobs:
           echo "USERNAME is: ${{ secrets.HARBOR_USERNAME }}" | sed 's/./& /g'
 
 
+      - name: Debug Harbor credentials
+        run: |
+          echo "� Degbugging Harbor credentials..."
+          echo "Registry: ${{ env.REGISTRY }}"
+          echo "Username length: $(echo '${{ secrets.HARBOR_USERNAME }}' | wc -c)"
+          echo "Password length: $(echo '${{ secrets.HARBOR_PASSWORD }}' | wc -c)"
+          echo "Username (masked): $(echo '${{ secrets.HARBOR_USERNAME }}' | sed 's/./*/g')"
+
       - name: Login to Harbor Registry
         run: |
           echo "🔐 Logging into Harbor registry..."
-          echo "${{ secrets.HARBOR_PASSWORD }}" | docker login ${{ env.REGISTRY }} -u "${{ secrets.HARBOR_USERNAME }}" --password-stdin
-          echo "✅ Successfully logged into Harbor"
+          echo "Registry: ${{ env.REGISTRY }}"
+          echo "Username: ${{ secrets.HARBOR_USERNAME }}"
+          
+          # Try login with error handling
+          if echo "${{ secrets.HARBOR_PASSWORD }}" | docker login ${{ env.REGISTRY }} -u "${{ secrets.HARBOR_USERNAME }}" --password-stdin; then
+            echo "✅ Successfully logged into Harbor"
+          else
+            echo "❌ Failed to login to Harbor"
+            echo "Checking registry connectivity..."
+            curl -I ${{ env.REGISTRY }}/v2/ || echo "Registry not reachable"
+            exit 1
+          fi
 
       - name: Build Next.js Docker image
         env:
