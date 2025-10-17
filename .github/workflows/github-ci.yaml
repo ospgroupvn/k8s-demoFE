@@ -78,13 +78,14 @@ jobs:
           echo "Registry: ${{ env.REGISTRY }}"
           echo "Username: ${{ secrets.HARBOR_USERNAME }}"
           
-          # Try login with error handling
+          # Login to Harbor
           if echo "${{ secrets.HARBOR_PASSWORD }}" | docker login ${{ env.REGISTRY }} -u "${{ secrets.HARBOR_USERNAME }}" --password-stdin; then
             echo "✅ Successfully logged into Harbor"
           else
             echo "❌ Failed to login to Harbor"
-            echo "Checking registry connectivity..."
-            curl -I ${{ env.REGISTRY }}/v2/ || echo "Registry not reachable"
+            echo "Please verify HARBOR_USERNAME secret is: robot\$demok8s+demok8s"
+            echo "Current username length: $(echo '${{ secrets.HARBOR_USERNAME }}' | wc -c)"
+            echo "Expected length should be: 22"
             exit 1
           fi
 
