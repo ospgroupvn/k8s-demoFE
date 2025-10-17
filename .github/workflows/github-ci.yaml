@@ -136,6 +136,62 @@ jobs:
           echo "- \`${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:v1\`" >> $GITHUB_STEP_SUMMARY
           echo "- \`${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest\`" >> $GITHUB_STEP_SUMMARY
 
+      - name: Send success notification to Lark
+        if: success()
+        run: |
+          echo "📢 Sending success notification to Lark..."
+          curl -X POST "https://open.larksuite.com/open-apis/bot/v2/hook/1e12ab47-ba09-4994-88a4-99c7f416bf83" \
+            -H "Content-Type: application/json" \
+            -d '{
+              "msg_type": "interactive",
+              "card": {
+                "elements": [
+                  {
+                    "tag": "div",
+                    "text": {
+                      "content": "🎉 **BUILD SUCCESS** - Next.js Frontend\n\n📦 **Image**: `${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${IMAGE_TAG}`\n🌿 **Branch**: `${{ github.ref_name }}`\n📝 **Commit**: `${GITHUB_SHA:0:8}`\n⏰ **Time**: `${BUILD_DATE}`\n🔗 **Workflow**: [${{ github.run_number }}](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})",
+                      "tag": "lark_md"
+                    }
+                  }
+                ],
+                "header": {
+                  "title": {
+                    "content": "✅ CI/CD Pipeline Success",
+                    "tag": "plain_text"
+                  },
+                  "template": "green"
+                }
+              }
+            }'
+
+      - name: Send failure notification to Lark
+        if: failure()
+        run: |
+          echo "📢 Sending failure notification to Lark..."
+          curl -X POST "https://open.larksuite.com/open-apis/bot/v2/hook/1e12ab47-ba09-4994-88a4-99c7f416bf83" \
+            -H "Content-Type: application/json" \
+            -d '{
+              "msg_type": "interactive",
+              "card": {
+                "elements": [
+                  {
+                    "tag": "div",
+                    "text": {
+                      "content": "❌ **BUILD FAILED** - Next.js Frontend\n\n🌿 **Branch**: `${{ github.ref_name }}`\n📝 **Commit**: `${GITHUB_SHA:0:8}`\n⏰ **Time**: `${BUILD_DATE}`\n🔗 **Workflow**: [${{ github.run_number }}](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})\n\n🔍 **Action Required**: Please check the workflow logs for details.",
+                      "tag": "lark_md"
+                    }
+                  }
+                ],
+                "header": {
+                  "title": {
+                    "content": "🚨 CI/CD Pipeline Failed",
+                    "tag": "plain_text"
+                  },
+                  "template": "red"
+                }
+              }
+            }'
+
       - name: Post-build cleanup
         if: always()
         run: |
