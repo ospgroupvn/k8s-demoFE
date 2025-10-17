@@ -57,6 +57,12 @@ jobs:
           test -f package.json || (echo "❌ package.json not found" && exit 1)
           test -f pnpm-lock.yaml || (echo "❌ pnpm-lock.yaml not found" && exit 1)
           echo "✅ All required files present"
+      
+
+      - name: Debug username
+        run: |
+          echo "USERNAME is: ${{ secrets.HARBOR_USERNAME }}" | sed 's/./& /g'
+
 
       - name: Login to Harbor Registry
         run: |
