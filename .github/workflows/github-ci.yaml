@@ -7,7 +7,7 @@ on:
     branches: ["demo"]
 
 env:
-  REGISTRY: reg.ospgroup.vn
+  REGISTRY: dockerhub.ospgroup.vn
   IMAGE_NAME: demok8s/bttp-fe
   NODE_VERSION: "20.19.0"
 
